@@ -1,0 +1,85 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+)
+
+type model struct {
+	options []string
+	selected int
+	output string
+	loading bool
+	activeView string
+}
+
+func initialModel() model {
+
+	return model{
+	}
+}
+
+func (m model) Init() tea.Cmd {
+	return textinput.Blink
+}
+
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		switch msg.String() {
+		case "ctrl+c", "q":
+			m.quitting = true;
+			return m, tea.Quit
+		}
+	}
+	m.input, cmd = m.input.Update(msg)
+	return m, cmd
+}
+
+func (m model) View() tea.View {
+
+	var style = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FAEFDA")).
+		Background(lipgloss.Color("#000000")).
+		PaddingRight(2).
+		PaddingLeft(2)
+
+	content := lipgloss.JoinVertical(
+		lipgloss.Top,
+		style.Render("Dockerzz"),
+		m.headerView(),
+		m.input.View(),
+		m.footerView(),
+		)
+
+	return tea.NewView(content)
+}
+
+
+func (m model) headerView() string { 
+	return "Write your command?\n" 
+}
+
+func (m model) footerView() string {
+	return "\n(esc to quit)" 
+}
+
+func main() {
+	p := tea.NewProgram(initialModel())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Alas, there's been an error: %v", err)
+		os.Exit(1)
+	}
+}
+
+
+
+func GetRunningContainers() string {
+	return "c1 is running"
+}
