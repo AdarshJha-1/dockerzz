@@ -1,25 +1,85 @@
-### Simple Docker TUI
+# 🐳 Simple Docker TUI
 
-A lightweight Terminal User Interface (TUI) built in Go to manage and navigate Docker containers more efficiently.
+> VIBE CODED BTW... idk how to use Bubble Tea, I know Docker tho.
 
-#### Motivation
+A lightweight Terminal User Interface (TUI) built with Go for quickly viewing Docker resources directly from the terminal.
 
-Managing Docker through CLI commands can be repetitive and hard to track. This project provides a clean, interactive interface to simplify common Docker operations.
+---
 
-#### Features
+## Features
 
 - View running containers
 - View all containers
-- Start / Stop containers
-- Inspect container details
-- Clean and minimal terminal UI
+- View Docker images
+- View Docker volumes
+- View Docker networks
+- View Docker version
+- View Docker disk usage
+- Refresh current view
+- Keyboard-only navigation
+- Clean terminal UI using Bubble Tea + Lipgloss
 
-#### Tech Stack
+---
 
-- Go (Golang)
-- Bubble Tea (TUI framework)
-- Docker CLI / API
+## Keybindings
 
-#### Goal
+| Key     | Action               |
+| ------- | -------------------- |
+| `j / ↓` | Move down            |
+| `k / ↑` | Move up              |
+| `enter` | Select option        |
+| `b`     | Go back              |
+| `r`     | Refresh current view |
+| `g`     | Jump to top          |
+| `G`     | Jump to bottom       |
+| `q`     | Quit                 |
 
-To explore building terminal-based applications while improving developer experience for Docker users.
+---
+
+## Tech Stack
+
+- Go
+- Bubble Tea
+- Lipgloss
+- Docker CLI
+
+---
+
+## Screenshot
+
+![ss1](./assets/ss1.png)
+![ss2](./assets/ss2.png)
+![ss3](./assets/ss3.png)
+
+```bash
+🐳 Docker Dashboard
+
+[x] Running Containers
+[ ] All Containers
+[ ] Images
+[ ] Volumes
+[ ] Networks
+[ ] Docker Version
+[ ] Disk Usage
+```
+
+---
+
+## Run Locally
+
+```bash
+git clone <repo-url>
+
+cd <repo>
+
+go mod tidy
+
+go run main.go
+```
+
+---
+
+## Requirements
+
+- Go installed
+- Docker installed and running

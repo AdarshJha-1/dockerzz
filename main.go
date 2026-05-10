@@ -4,62 +4,73 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
-	"strconv"
-	"time"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/fogleman/ease"
-	"github.com/lucasb-eyer/go-colorful"
 )
-
-// boilerplate copied from example on github
 
 var (
-	keywordStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("211"))
-	subtleStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	ticksStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("79"))
-	checkboxStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	mainStyle     = lipgloss.NewStyle().MarginLeft(2)
+	titleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("212")).
+			Bold(true)
 
+	outputStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("86"))
+
+	subtleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241"))
+
+	activeStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("212")).
+			Bold(true)
+
+	boxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("63")).
+			Padding(1, 2)
+
+	mainStyle = lipgloss.NewStyle().
+			MarginLeft(2).
+			MarginTop(1)
 )
-
-
-type (
-	tickMsg  struct{}
-	frameMsg struct{}
-)
-
-func tick() tea.Cmd {
-	return tea.Tick(time.Second, func(time.Time) tea.Msg {
-		return tickMsg{}
-	})
-}
-
-func frame() tea.Cmd {
-	return tea.Tick(time.Second/60, func(time.Time) tea.Msg {
-		return frameMsg{}
-	})
-}
 
 type model struct {
 	Choice   int
 	Chosen   bool
-	Ticks    int
-	Frames   int
-	Progress float64
-	Loaded   bool
 	Quitting bool
+	Output   string
+	Width    int
+	Height   int
+}
+
+var menuItems = []string{
+	"Running Containers",
+	"All Containers",
+	"Images",
+	"Volumes",
+	"Networks",
+	"Docker Version",
+	"Disk Usage",
 }
 
 func (m model) Init() tea.Cmd {
-	return tick()
+	return nil
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := msg.(tea.KeyPressMsg); ok {
-		k := msg.String()
-		if k == "q" || k == "esc" || k == "ctrl+c" {
+
+	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		m.Width = msg.Width
+		m.Height = msg.Height
+
+	case tea.KeyPressMsg:
+
+		switch msg.String() {
+
+		case "q", "esc", "ctrl+c":
 			m.Quitting = true
 			return m, tea.Quit
 		}
@@ -68,161 +79,208 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.Chosen {
 		return updateChoices(msg, m)
 	}
+
 	return updateChosen(msg, m)
 }
 
-func (m model) View() tea.View {
-	var s string
-	if m.Quitting {
-		return tea.NewView("\n  See you later!\n\n")
-	}
-	if !m.Chosen {
-		s = choicesView(m)
-	} else {
-		s = chosenView(m)
-	}
-	return tea.NewView(mainStyle.Render("\n" + s + "\n"))
-}
-
 func updateChoices(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyPressMsg:
-		switch msg.String() {
-		case "j", "down":
-			m.Choice++
-			if m.Choice > 3 {
-				m.Choice = 3
-			}
-		case "k", "up":
-			m.Choice--
-			if m.Choice < 0 {
-				m.Choice = 0
-			}
-		case "enter":
-			m.Chosen = true
-			return m, frame()
-		}
 
-	case tickMsg:
-		if m.Ticks == 0 {
-			m.Quitting = true
-			return m, tea.Quit
+	switch msg := msg.(type) {
+
+	case tea.KeyPressMsg:
+
+		switch msg.String() {
+
+		case "j", "down":
+			if m.Choice < len(menuItems)-1 {
+				m.Choice++
+			}
+
+		case "k", "up":
+			if m.Choice > 0 {
+				m.Choice--
+			}
+
+		case "g":
+			m.Choice = 0
+
+		case "G":
+			m.Choice = len(menuItems) - 1
+
+		case "enter":
+
+			m.Chosen = true
+
+			// run only once
+			m.Output = runDockerCommand(m.Choice)
+
+			return m, nil
 		}
-		m.Ticks--
-		return m, tick()
 	}
 
 	return m, nil
 }
 
 func updateChosen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
-	case frameMsg:
-		if !m.Loaded {
-			m.Frames++
-			m.Progress = ease.OutBounce(float64(m.Frames) / float64(100))
-			if m.Progress >= 1 {
-				m.Progress = 1
-				m.Loaded = true
-				m.Ticks = 3
-				return m, tick()
-			}
-			return m, frame()
-		}
 
-	case tickMsg:
-		if m.Loaded {
-			if m.Ticks == 0 {
-				m.Quitting = true
-				return m, tea.Quit
-			}
-			m.Ticks--
-			return m, tick()
+	switch msg := msg.(type) {
+
+	case tea.KeyPressMsg:
+
+		switch msg.String() {
+
+		case "b", "enter":
+
+			m.Chosen = false
+			m.Output = ""
+
+			return m, nil
+
+		case "r":
+
+			// manual refresh only
+			m.Output = runDockerCommand(m.Choice)
+
+			return m, nil
 		}
 	}
 
 	return m, nil
 }
 
+func runDockerCommand(choice int) string {
+
+	var cmd *exec.Cmd
+
+	switch choice {
+
+	case 0:
+		cmd = exec.Command("docker", "ps")
+
+	case 1:
+		cmd = exec.Command("docker", "ps", "-a")
+
+	case 2:
+		cmd = exec.Command("docker", "images")
+
+	case 3:
+		cmd = exec.Command("docker", "volume", "ls")
+
+	case 4:
+		cmd = exec.Command("docker", "network", "ls")
+
+	case 5:
+		cmd = exec.Command("docker", "--version")
+
+	case 6:
+		cmd = exec.Command("docker", "system", "df")
+
+	default:
+		return "Unknown option"
+	}
+
+	out, err := cmd.CombinedOutput()
+
+	if err != nil {
+		log.Println(err)
+		return err.Error()
+	}
+
+	return strings.TrimSpace(string(out))
+}
+
+func (m model) View() tea.View {
+
+	if m.Quitting {
+		return tea.NewView("\n Goodbye 👋\n")
+	}
+
+	var content string
+
+	if !m.Chosen {
+		content = choicesView(m)
+	} else {
+		content = chosenView(m)
+	}
+
+	return tea.NewView(
+		mainStyle.Render(content),
+	)
+}
+
 func choicesView(m model) string {
-	c := m.Choice
 
-	tpl := "Which information do you want?\n\n"
-	tpl += "%s\n\n"
-	tpl += "Program quits in %s seconds\n\n"
-	tpl += subtleStyle.Render("j/k, up/down: select")+
-		subtleStyle.Render("enter: choose") +
-		subtleStyle.Render("q, esc: quit")
+	var b strings.Builder
 
-	choices := fmt.Sprintf(
-		"%s\n%s\n%s\n%s",
-		checkbox("Running containers", c == 0),
-		checkbox("All containers", c == 1),
-		checkbox("Images", c == 2),
-		checkbox("More", c == 3),
+	b.WriteString(
+		titleStyle.Render("🐳 Docker Dashboard"),
 	)
 
-	return fmt.Sprintf(tpl, choices, ticksStyle.Render(strconv.Itoa(m.Ticks)))
+	b.WriteString("\n\n")
+
+	for i, item := range menuItems {
+
+		cursor := "[ ]"
+
+		if i == m.Choice {
+			cursor = activeStyle.Render("[x]")
+			item = activeStyle.Render(item)
+		}
+
+		b.WriteString(
+			fmt.Sprintf("%s %s\n", cursor, item),
+		)
+	}
+
+	b.WriteString("\n")
+
+	b.WriteString(
+		subtleStyle.Render(
+			"j/k • ↑/↓ navigate • enter select • g top • G bottom • q quit",
+		),
+	)
+
+	return boxStyle.Render(b.String())
 }
 
 func chosenView(m model) string {
-	var msg string
 
-	switch m.Choice {
-	case 0:
-		cmnd := exec.Command("docker", "ps");
-		out, err := cmnd.Output()
-		if err != nil {
-			log.Fatal(err)
-		}
-		msg = fmt.Sprintf("%s", keywordStyle.Render(string(out)))
-	case 1:
-		cmnd := exec.Command("docker", "ps", "-a");
-		out, err := cmnd.Output()
-		if err != nil {
-			log.Fatal(err)
-		}
-		msg = fmt.Sprintf("%s", keywordStyle.Render(string(out)))
-	case 2:
-		cmnd := exec.Command("docker", "images");
-		out, err := cmnd.Output()
-		if err != nil {
-			log.Fatal(err)
-		}
-		msg = fmt.Sprintf("%s", keywordStyle.Render(string(out)))
-	default:
-		msg = fmt.Sprintf("It’s always good to see friends.\n\nFetching %s and %s...", keywordStyle.Render("social-skills"), keywordStyle.Render("conversationutils"))
+	title := titleStyle.Render(
+		fmt.Sprintf("📄 %s", menuItems[m.Choice]),
+	)
+
+	footer := subtleStyle.Render(
+		"\n\nb/enter back • r refresh • q quit",
+	)
+
+	view := fmt.Sprintf(
+		"%s\n\n%s\n\n%s",
+		title,
+		outputStyle.Render(m.Output),
+		footer,
+	)
+
+	width := m.Width - 6
+
+	if width < 20 {
+		width = 20
 	}
 
-
-	return msg
-}
-
-func checkbox(label string, checked bool) string {
-	if checked {
-		return checkboxStyle.Render("[x] " + label)
-	}
-	return fmt.Sprintf("[ ] %s", label)
-}
-
-// Utils
-func colorToHex(c colorful.Color) string {
-	return fmt.Sprintf("#%s%s%s", colorFloatToHex(c.R), colorFloatToHex(c.G), colorFloatToHex(c.B))
-}
-
-func colorFloatToHex(f float64) (s string) {
-	s = strconv.FormatInt(int64(f*255), 16)
-	if len(s) == 1 {
-		s = "0" + s
-	}
-	return s
+	return boxStyle.Width(width).Render(view)
 }
 
 func main() {
-	initialModel := model{0, false, 10, 0, 0, false, false}
+
+	initialModel := model{
+		Choice:   0,
+		Chosen:   false,
+		Quitting: false,
+		Output:   "",
+	}
+
 	p := tea.NewProgram(initialModel)
+
 	if _, err := p.Run(); err != nil {
-		fmt.Println("could not start program:", err)
+		fmt.Println("error:", err)
 	}
 }
-
