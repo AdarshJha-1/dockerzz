@@ -1,6 +1,7 @@
 ### Simple Docker TUI
 
-A lightweight Terminal User Interface (TUI) built in Go to manage and navigate Docker containers more efficiently.
+- VIBE CODED BTW...idk how to use bubble tea i know docker tho.
+  A lightweight Terminal User Interface (TUI) built in Go to manage and navigate Docker containers more efficiently.
 
 #### Motivation
 
